@@ -39,7 +39,7 @@ tick();setInterval(tick,6e4);
 if(page==='nominations'){
   const [noms,ent]=await Promise.all([getNoms(),getEntries()]);
   const slots=Math.max(9,Math.ceil(noms.length/3)*3);
-  $('#noms').innerHTML=noms.map(n=>`<a class="nom" style="--c:${esc(n.c)}" href="nomination.html?id=${encodeURIComponent(n.id)}"><span class="go">→</span><h3>${esc(n.t)}</h3><small>${ent.filter(e=>(e.noms||[]).includes(n.id)).length} участников</small></a>`).join('')
+  $('#noms').innerHTML=noms.map(n=>`<a class="nom" data-fx="${esc(n.id)}" style="--c:${esc(n.c)}" href="nomination.html?id=${encodeURIComponent(n.id)}"><span class="go">→</span>${n.id==='sound'?'<span class="eq"><i></i><i></i><i></i><i></i><i></i></span>':''}<h3>${esc(n.t)}</h3><small>${ent.filter(e=>(e.noms||[]).includes(n.id)).length} участников</small></a>`).join('')
    +Array.from({length:slots-noms.length},()=>`<div class="nom soon"><h3>Скоро новая номинация</h3><small>Текст-заглушка</small></div>`).join('');
 }
 if(page==='nomination'){
@@ -78,4 +78,21 @@ if(page==='apply'){
     else msg('Не удалось отправить заявку. Возможно, ты уже подал максимум (5 заявок с одного аккаунта).');
     b.disabled=false;
   });
+}
+
+if(page==='home'){
+  const [noms,ent]=await Promise.all([getNoms(),getEntries()]);
+  const m=noms.map(n=>`<span>${esc(n.t)}</span>`).join('');
+  $('#marq').innerHTML=`<div class="track">${m.repeat(4)}</div>`;
+  const authors=new Set(ent.map(e=>String(e.author||'').trim().toLowerCase()).filter(Boolean)).size;
+  const items=[[noms.length,'номинаций'],[ent.length,'карт'],[authors,'авторов']].filter(x=>x[0]>0);
+  $('#stats').innerHTML=items.map(([v,l])=>`<div><b data-v="${v}">0</b><span>${l}</span></div>`).join('');
+  const still=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  const io=new IntersectionObserver(es=>es.forEach(x=>{
+    if(!x.isIntersecting)return;io.unobserve(x.target);
+    const el=x.target,to=+el.dataset.v,t0=performance.now();
+    const f=t=>{const k=still?1:Math.min(1,(t-t0)/1200);el.textContent=Math.round(to*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(f)};
+    requestAnimationFrame(f);
+  }),{threshold:.6});
+  document.querySelectorAll('[data-v]').forEach(e=>io.observe(e));
 }
