@@ -80,3 +80,4 @@ header{flex-wrap:wrap}
 .nrow .btn{padding:.7rem 1.2rem}.nrow .btn.ghost{margin-left:0}
 h3{font:500 1.2rem var(--f1);margin:2rem 0 1rem}
 [hidden]{display:none!important}
+main{position:relative;z-index:1}
