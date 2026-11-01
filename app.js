@@ -1,4 +1,4 @@
-import {ready,db,FS} from './fb.js';
+import {ready,db,auth,FS,AU} from './fb.js';
 export const DEFAULT=[
  {id:'best',t:'Лучшая карта',d:'Главная номинация премии. Текст-заглушка.',c:'#b8f25b'},
  {id:'scary',t:'Самая страшная карта',d:'Текст-заглушка описания номинации.',c:'#ff6b5e'},
@@ -55,17 +55,27 @@ if(page==='nomination'){
 if(page==='apply'){
   const noms=await getNoms();
   $('#formNoms').insertAdjacentHTML('beforeend',noms.map(n=>`<label><input type="checkbox" name="noms" value="${esc(n.id)}">${esc(n.t)}</label>`).join(''));
-  const msg=t=>$('#msg').textContent=t;
-  $('#form').addEventListener('submit',async e=>{
-    e.preventDefault();const f=e.target,fd=new FormData(f),g=(k,m)=>String(fd.get(k)||'').trim().slice(0,m);
-    if(!ready)return msg('Приём заявок ещё не подключён.');
+  const msg=t=>$('#msg').textContent=t,form=$('#form'),ab=$('#authbox');
+  if(!ready)ab.innerHTML='<p class="text">Приём заявок ещё не подключён.</p>';
+  else AU.onAuthStateChanged(auth,u=>{
+    form.hidden=!u;
+    if(!u){ab.innerHTML='<p class="text">Чтобы подать заявку, войди через Google. Так мы защищаемся от спама.</p><button class="btn" id="gin">Войти через Google</button>';
+      $('#gin').onclick=()=>AU.signInWithPopup(auth,new AU.GoogleAuthProvider()).catch(()=>{});}
+    else{ab.innerHTML=`<p class="text">Вы вошли как ${esc(u.email)} <button class="btn ghost" id="gout">Выйти</button></p>`;$('#gout').onclick=()=>AU.signOut(auth)}
+  });
+  form.addEventListener('submit',async e=>{
+    e.preventDefault();const f=e.target,fd=new FormData(f),g=(k,m)=>String(fd.get(k)||'').trim().slice(0,m),u=ready&&auth.currentUser;
+    if(!u)return msg('Сначала войди через Google.');
     if(!fd.getAll('noms').length)return msg('Выбери хотя бы одну номинацию.');
-    const b=f.querySelector('button');b.disabled=true;
-    try{
-      await FS.addDoc(FS.collection(db,'applications'),{name:g('name',200),author:g('author',200),version:g('version',50),link:g('link',500),date:g('date',20),
-        noms:fd.getAll('noms'),media:g('media',2000),desc:g('desc',2000),contact:g('contact',200),status:'new',created:FS.serverTimestamp()});
-      f.reset();msg('Заявка отправлена. Мы проверим её и свяжемся с тобой.');
-    }catch(err){msg('Не удалось отправить заявку. Попробуй ещё раз.')}
+    const b=f.querySelector('button');b.disabled=true;msg('');
+    const data={name:g('name',200),author:g('author',200),version:g('version',50),link:g('link',500),date:g('date',20),
+      noms:fd.getAll('noms'),media:g('media',2000),desc:g('desc',2000),contact:g('contact',200),
+      uid:u.uid,email:u.email,status:'new',created:FS.serverTimestamp()};
+    // не больше 5 заявок с одного аккаунта: id = uid_1 ... uid_5, занятые слоты база отклоняет
+    let ok=false;
+    for(let i=1;i<=5&&!ok;i++){try{await FS.setDoc(FS.doc(db,'applications',u.uid+'_'+i),data);ok=true}catch(err){}}
+    if(ok){f.reset();msg('Заявка отправлена. Мы проверим её и свяжемся с тобой.')}
+    else msg('Не удалось отправить заявку. Возможно, ты уже подал максимум (5 заявок с одного аккаунта).');
     b.disabled=false;
   });
 }

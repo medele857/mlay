@@ -79,3 +79,4 @@ header{flex-wrap:wrap}
 .nrow .t{flex:1 1 200px}.nrow .d{flex:2 1 260px}.nrow .o{width:5rem}.nrow .c{padding:.2rem;width:3.2rem;height:2.8rem}
 .nrow .btn{padding:.7rem 1.2rem}.nrow .btn.ghost{margin-left:0}
 h3{font:500 1.2rem var(--f1);margin:2rem 0 1rem}
+[hidden]{display:none!important}
