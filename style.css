@@ -80,4 +80,9 @@ header{flex-wrap:wrap}
 .nrow .btn{padding:.7rem 1.2rem}.nrow .btn.ghost{margin-left:0}
 h3{font:500 1.2rem var(--f1);margin:2rem 0 1rem}
 [hidden]{display:none!important}
-main{position:relative;z-index:1}
+/* фон главной */
+.bgwall{position:fixed;inset:0;z-index:-1;display:grid;grid-template:1fr 1fr/1fr 1fr;opacity:.5;pointer-events:none}
+.bgwall::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 25%,var(--bg) 100%)}
+.bgc{position:relative;overflow:hidden}
+.bgc img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.4s}
+.bgc img.on{opacity:1}
