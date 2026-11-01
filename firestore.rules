@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ВПИШИ СВОЙ GOOGLE EMAIL АДМИНА:
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'ТВОЙ_EMAIL@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+    // Заявки: любой может отправить, читать и менять может только админ
+    match /applications/{id} {
+      allow create: if request.resource.data.status == 'new'
+        && request.resource.data.keys().hasOnly(['name','author','version','link','date','noms','media','desc','contact','status','created'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 200
+        && request.resource.data.author is string && request.resource.data.author.size() <= 200
+        && request.resource.data.link is string && request.resource.data.link.size() <= 500
+        && request.resource.data.contact is string && request.resource.data.contact.size() <= 200
+        && request.resource.data.desc is string && request.resource.data.desc.size() <= 2000
+        && request.resource.data.media is string && request.resource.data.media.size() <= 2000
+        && request.resource.data.noms is list && request.resource.data.noms.size() <= 20;
+      allow read, update, delete: if isAdmin();
+    }
+    // Одобренные участники и номинации: читают все, пишет админ
+    match /entries/{id}     { allow read: if true; allow write: if isAdmin(); }
+    match /nominations/{id} { allow read: if true; allow write: if isAdmin(); }
+  }
+}

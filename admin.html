@@ -1,0 +1,55 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Управление — Mlay 2026</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;800&family=Onest:wght@400;500;600&display=swap"><link rel="stylesheet" href="style.css"></head><body data-page="admin"><main><h2>Управление</h2><div id="box"></div></main>
+<script type="module">
+import {ready,db,auth,FS,AU} from './fb.js';
+import {esc,DEFAULT} from './app.js';
+const $=s=>document.querySelector(s),box=$('#box'),LBL={new:'Новая',approved:'Одобрена',rejected:'Отклонена'};
+const col=n=>FS.collection(db,n),ref=(n,i)=>FS.doc(db,n,i);
+if(!ready)box.innerHTML='<p class="text">Firebase не настроен: заполни firebase-config.js.</p>';
+else AU.onAuthStateChanged(auth,u=>{
+  if(!u){box.innerHTML='<button class="btn" id="in">Войти через Google</button>';$('#in').onclick=()=>AU.signInWithPopup(auth,new AU.GoogleAuthProvider());}
+  else start(u);
+});
+function start(u){
+  box.innerHTML='<p class="text">Вы вошли как '+esc(u.email)+' <button class="btn ghost" id="out">Выйти</button></p><div class="tabs"><button class="btn" data-t="apps">Заявки</button><button class="btn ghost" data-t="noms">Номинации</button></div><div id="tab"></div>';
+  $('#out').onclick=()=>AU.signOut(auth);
+  const tabs=box.querySelectorAll('[data-t]');
+  tabs.forEach(b=>b.onclick=()=>{tabs.forEach(x=>x.className='btn ghost');b.className='btn';b.dataset.t==='apps'?apps():noms()});
+  apps();
+}
+const denied=()=>$('#tab').innerHTML='<p class="text">Нет доступа. Проверь, что твой email указан в firestore.rules.</p>';
+async function apps(){
+  const el=$('#tab');el.innerHTML='Загрузка…';
+  try{
+    const s=await FS.getDocs(FS.query(col('applications'),FS.orderBy('created','desc')));
+    const nm=Object.fromEntries((await FS.getDocs(col('nominations'))).docs.map(d=>[d.id,d.data().t]));
+    DEFAULT.forEach(n=>nm[n.id]=nm[n.id]||n.t);
+    const data={};s.docs.forEach(d=>data[d.id]=d.data());
+    el.innerHTML=s.docs.length?s.docs.map(d=>{const a=d.data();return '<div class="acard"><span class="st '+esc(a.status)+'">'+esc(LBL[a.status]||a.status)+'</span><b>'+esc(a.name)+'</b> — '+esc(a.author)+
+      '<p>Версия: '+esc(a.version)+' · Выход: '+esc(a.date)+' · Контакты: '+esc(a.contact)+'</p><p>Номинации: '+esc((a.noms||[]).map(i=>nm[i]||i).join(', '))+'</p><p><a href="'+(/^https?:\/\//i.test(a.link)?esc(a.link):'#')+'" target="_blank" rel="noopener">Ссылка на карту</a></p><p>'+esc(a.desc)+'</p><p>'+esc(a.media)+'</p><div class="bar"><button class="btn" data-id="'+d.id+'" data-a="ok">Одобрить</button><button class="btn ghost" data-id="'+d.id+'" data-a="no">Отклонить</button></div></div>'}).join(''):'<p class="text">Заявок пока нет.</p>';
+    el.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{
+      const id=b.dataset.id,a=data[id];b.disabled=true;
+      if(b.dataset.a==='ok'){await FS.setDoc(ref('entries',id),{name:a.name,author:a.author,link:a.link,noms:a.noms||[],desc:a.desc||''});await FS.updateDoc(ref('applications',id),{status:'approved'})}
+      else{await FS.deleteDoc(ref('entries',id));await FS.updateDoc(ref('applications',id),{status:'rejected'})}
+      apps();
+    });
+  }catch(e){denied()}
+}
+const row=(id,n)=>'<div class="nrow" data-id="'+id+'"><input class="t" value="'+esc(n.t)+'" aria-label="Название"><input class="d" value="'+esc(n.d)+'" aria-label="Описание"><input class="c" type="color" value="'+esc(n.c||'#b8f25b')+'" aria-label="Цвет"><input class="o" type="number" value="'+(n.order??0)+'" aria-label="Порядок"><button class="btn" data-a="save">Сохранить</button><button class="btn ghost" data-a="del">Удалить</button></div>';
+async function noms(){
+  const el=$('#tab');el.innerHTML='Загрузка…';
+  try{
+    const s=await FS.getDocs(FS.query(col('nominations'),FS.orderBy('order')));
+    el.innerHTML=(s.docs.length?s.docs.map(d=>row(d.id,d.data())).join(''):'<p class="text">В базе номинаций пока нет, сайт показывает стандартные. <button class="btn" id="seed">Загрузить стандартные в базу</button></p>')+
+     '<h3>Добавить номинацию</h3><div class="nrow" id="new"><input class="t" placeholder="Название"><input class="d" placeholder="Описание"><input class="c" type="color" value="#b8f25b"><input class="o" type="number" value="'+s.docs.length+'"><button class="btn" data-a="add">Добавить</button></div>';
+    const sd=$('#seed');if(sd)sd.onclick=async()=>{for(const [i,n] of DEFAULT.entries())await FS.setDoc(ref('nominations',n.id),{t:n.t,d:n.d,c:n.c,order:i});noms()};
+    el.querySelectorAll('.nrow [data-a]').forEach(b=>b.onclick=async()=>{
+      const r=b.closest('.nrow'),v={t:r.querySelector('.t').value.trim(),d:r.querySelector('.d').value.trim(),c:r.querySelector('.c').value,order:+r.querySelector('.o').value||0};
+      if(!v.t)return;
+      if(b.dataset.a==='del'){if(!confirm('Удалить номинацию?'))return;await FS.deleteDoc(ref('nominations',r.dataset.id))}
+      else if(b.dataset.a==='add')await FS.addDoc(col('nominations'),v);
+      else await FS.updateDoc(ref('nominations',r.dataset.id),v);
+      noms();
+    });
+  }catch(e){denied()}
+}
+</script></body></html>
